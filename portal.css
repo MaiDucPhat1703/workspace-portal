@@ -1,0 +1,31 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  background: #f4f6f8;
+  color: #172a3a;
+  font-size: 16px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+button, input { font: inherit; }
+.gate { min-height: 100svh; display: grid; place-items: center; padding: 1.25rem; }
+.login { width: min(100%, 410px); background: #fff; border: 1px solid #dce4e9; border-radius: 1rem; padding: 2rem; box-shadow: 0 12px 40px #1534480d; }
+.logo { display: grid; place-items: center; width: 3.1rem; height: 3.1rem; border-radius: .8rem; color: #fff; background: #23565b; margin: 0 auto 1rem; }
+h1 { margin: 0 0 1.55rem; font-size: 1.7rem; letter-spacing: -.045em; text-align: center; }
+label { display: block; margin: .95rem 0 .35rem; font-weight: 650; font-size: .9rem; }
+input { width: 100%; min-height: 45px; background: #fff; border: 1px solid #bccbd4; border-radius: .55rem; padding: .65rem .75rem; color: #172a3a; }
+:focus-visible { outline: 3px solid #278d85; outline-offset: 2px; }
+.password-field { position: relative; }
+.password-field input { padding-right: 4.2rem; }
+#show-password { position: absolute; right: .4rem; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #23565b; padding: .35rem; cursor: pointer; font-size: .85rem; font-weight: 650; }
+.message { font-size: .87rem; color: #9a3326; margin: .85rem 0 0; min-height: 1.35rem; }
+.message[data-kind="info"] { color: #346069; }
+#login-submit { width: 100%; margin-top: .75rem; border: 0; min-height: 46px; border-radius: .6rem; background: #21666b; color: #fff; font-weight: 700; cursor: pointer; }
+#login-submit:disabled { opacity: .66; cursor: wait; }
+.workspace { display: flex; flex-direction: column; height: 100svh; overflow: hidden; }
+.session-bar { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; padding: .45rem .8rem; background: #152f34; color: #fff; font-size: .82rem; }
+#logout { border: 1px solid #7ea2a5; border-radius: .4rem; color: #fff; background: transparent; padding: .35rem .7rem; cursor: pointer; }
+#frame-host { flex: 1; min-height: 0; }
+#frame-host iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+@media(max-width: 430px) { .login { padding: 1.5rem; } }
