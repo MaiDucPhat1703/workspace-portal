@@ -9,12 +9,13 @@ let activeUrl = null;
 let busy = false;
 let envelope = null;
 const utf8 = new TextEncoder();
+const sessionKey = 'workspace-portal/session/v1';
 
 function bytes(value) {
   return Uint8Array.from(atob(value), c => c.charCodeAt(0));
 }
 
-async function unlock(username, pass, data) {
+async function deriveSessionKey(username, pass, data) {
   if (data.version !== 1 || data.iterations !== 600000 || !Array.isArray(data.ciphertext)) {
     throw new Error('Unsupported envelope.');
   }
@@ -23,11 +24,70 @@ async function unlock(username, pass, data) {
   );
   const key = await crypto.subtle.deriveKey({
     name:'PBKDF2', hash:'SHA-256', salt:bytes(data.salt), iterations:data.iterations
-  }, material, {name:'AES-GCM',length:256}, false, ['decrypt']);
+  }, material, {name:'AES-GCM',length:256}, true, ['decrypt']);
+  return key;
+}
+
+async function decryptDocument(key, data) {
+  if (data.version !== 1 || data.iterations !== 600000 || !Array.isArray(data.ciphertext)) {
+    throw new Error('Unsupported envelope.');
+  }
   const plain = await crypto.subtle.decrypt({
     name:'AES-GCM', iv:bytes(data.iv), additionalData:utf8.encode('workspace-portal:v1'), tagLength:128
   }, key, bytes(data.ciphertext.join('')));
   return new TextDecoder('utf-8',{fatal:true}).decode(plain);
+}
+
+async function loadEnvelope() {
+  if (!envelope) {
+    const response = await fetch('payload.json', {cache:'no-store', credentials:'omit'});
+    if (!response.ok) throw new Error('Payload unavailable.');
+    envelope = await response.json();
+  }
+  return envelope;
+}
+
+function readSession() {
+  try { return JSON.parse(sessionStorage.getItem(sessionKey) || 'null'); }
+  catch (_) { return null; }
+}
+
+function saveSession(session) {
+  try { sessionStorage.setItem(sessionKey, JSON.stringify(session)); }
+  catch (_) { /* Login remains valid until the current document is closed. */ }
+}
+
+function forgetSession() {
+  try { sessionStorage.removeItem(sessionKey); } catch (_) {}
+}
+
+function safeRoute(value) {
+  return typeof value === 'string' && /^#(?:home|learn(?:\/[a-z0-9-]+)?|exam|tools)$/.test(value) ? value : '';
+}
+
+function openWorkspace(documentHtml, route = '') {
+  activeUrl = URL.createObjectURL(new Blob([documentHtml], {type:'text/html;charset=utf-8'}));
+  const frame = document.createElement('iframe');
+  frame.title = 'Workspace';
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox');
+  frame.referrerPolicy = 'no-referrer';
+  frame.src = activeUrl + safeRoute(route);
+  function rememberRoute() {
+    try {
+      const current = readSession();
+      if (current) saveSession({...current,route:safeRoute(frame.contentWindow.location.hash)});
+    } catch (_) { /* Same-origin app route only. */ }
+  }
+  frame.addEventListener('load', () => {
+    try { frame.contentWindow.addEventListener('hashchange', rememberRoute); rememberRoute(); }
+    catch (_) {}
+  });
+  get('frame-host').replaceChildren(frame);
+  form.reset();
+  showMessage('');
+  get('gate').hidden = true;
+  get('workspace').hidden = false;
+  get('logout').focus();
 }
 
 function showMessage(text, kind = 'error') {
@@ -36,6 +96,7 @@ function showMessage(text, kind = 'error') {
 }
 
 function closeWorkspace() {
+  forgetSession();
   get('frame-host').replaceChildren();
   if (activeUrl) URL.revokeObjectURL(activeUrl);
   activeUrl = null;
@@ -69,14 +130,12 @@ form.addEventListener('submit', async event => {
   button.disabled = true;
   showMessage('Đang xác thực…', 'info');
   try {
-    if (!envelope) {
-      const response = await fetch('payload.json', {cache:'no-store', credentials:'omit'});
-      if (!response.ok) throw new Error('Payload unavailable.');
-      envelope = await response.json();
-    }
+    const data = await loadEnvelope();
     let documentHtml;
+    let key;
     try {
-      documentHtml = await unlock(get('username').value, password.value, envelope);
+      key = await deriveSessionKey(get('username').value, password.value, data);
+      documentHtml = await decryptDocument(key, data);
     } catch (error) {
       if (error.name === 'OperationError') {
         showMessage('Tài khoản hoặc mật khẩu không đúng.');
@@ -85,20 +144,11 @@ form.addEventListener('submit', async event => {
       }
       throw error;
     }
-    // Only an authenticated decryption can yield the application document.
-    // A separate document preserves navigation and the app's localStorage.
-    activeUrl = URL.createObjectURL(new Blob([documentHtml], {type:'text/html;charset=utf-8'}));
-    const frame = document.createElement('iframe');
-    frame.title = 'Workspace';
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox');
-    frame.referrerPolicy = 'no-referrer';
-    frame.src = activeUrl;
-    get('frame-host').replaceChildren(frame);
-    form.reset();
-    showMessage('');
-    get('gate').hidden = true;
-    get('workspace').hidden = false;
-    get('logout').focus();
+    // Keep only the derived key in this tab's session; never save the password.
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key));
+    saveSession({key:btoa(String.fromCharCode(...raw)),route:''});
+    raw.fill(0);
+    openWorkspace(documentHtml);
   } catch (_) {
     showMessage('Không mở được dữ liệu. Vui lòng thử lại.');
   } finally {
@@ -107,6 +157,28 @@ form.addEventListener('submit', async event => {
   }
 });
 get('logout').addEventListener('click',closeWorkspace);
-window.addEventListener('pagehide', () => {
-  if (activeUrl) closeWorkspace();
+window.addEventListener('pagehide', event => {
+  if (!event.persisted && activeUrl) URL.revokeObjectURL(activeUrl);
 });
+
+async function restoreWorkspace() {
+  const session = readSession();
+  if (!session || typeof session.key !== 'string' || !window.isSecureContext || !crypto.subtle) return;
+  busy = true;
+  button.disabled = true;
+  showMessage('Đang khôi phục phiên…', 'info');
+  try {
+    const data = await loadEnvelope();
+    const raw = bytes(session.key);
+    const key = await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['decrypt']);
+    raw.fill(0);
+    openWorkspace(await decryptDocument(key,data),session.route);
+  } catch (_) {
+    forgetSession();
+    showMessage('Phiên đã hết hạn. Vui lòng đăng nhập lại.');
+  } finally {
+    busy=false;
+    button.disabled=false;
+  }
+}
+const restoration = restoreWorkspace();
