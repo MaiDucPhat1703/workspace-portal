@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="color-scheme" content="light">
+  <title>Workspace</title>
+  <link rel="stylesheet" href="portal.css">
+  <script defer src="portal.js"></script>
+</head>
+<body>
+  <section id="gate" class="gate" aria-labelledby="title">
+    <div class="login">
+      <div class="logo" aria-hidden="true">
+        <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></svg>
+      </div>
+      <h1 id="title">Đăng nhập</h1>
+      <form id="login-form">
+        <label for="username">Tài khoản</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+        <label for="password">Mật khẩu</label>
+        <div class="password-field">
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button id="show-password" type="button" aria-label="Hiện mật khẩu" aria-pressed="false">Hiện</button>
+        </div>
+        <p id="message" class="message" role="status" aria-live="polite"></p>
+        <button id="login-submit" type="submit">Đăng nhập</button>
+      </form>
+    </div>
+  </section>
+  <section id="workspace" class="workspace" hidden aria-label="Workspace">
+    <header class="session-bar"><span>Phiên đã mở</span><button id="logout" type="button">Đăng xuất</button></header>
+    <div id="frame-host"></div>
+  </section>
+  <noscript>Vui lòng bật JavaScript để đăng nhập.</noscript>
+</body>
+</html>
